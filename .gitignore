@@ -1,0 +1,11 @@
+.idea
+__pycache__
+dist
+build
+report.html
+ats.db
+bookmarks.xml
+data/*
+.ropeproject
+backup
+*.mp4
