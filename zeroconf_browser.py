@@ -1,10 +1,11 @@
 from zeroconf import ServiceBrowser, ServiceStateChange, Zeroconf
+import utils
 from threading import Event
 import socket
 import time
 
 import logging
-logger = logging.getLogger("chatroom")
+logger = logging.getLogger("chatroom.zeroconf.browser")
 
 class Service:
     ADDED = "added"
@@ -46,32 +47,28 @@ class Service:
 
 
 class Browser:
-    TYPE = "_http._tcp.local."
-    FULL_NAME_FORMAT = "{}._http._tcp.local."
-
     def __init__(self):
         self.zeroconf = Zeroconf()
         self.handlers = []
 
         self.services = {}
 
-    def get_full_name(self, name):
-        if not name.startswith("_"):
-            name = "_{}".format(name)
-
-        return self.FULL_NAME_FORMAT.format(name)
-
     def list(self):
         return self.services.values()
 
     def get(self, name):
-        return self.services.get(self.get_full_name(name))
+        return self.get_by_full_name(utils.get_full_name(name))
+
+    def get_by_full_name(self, full_name):
+        return self.services.get(full_name)
 
     def wait(self, name, timeout=60):
-        full_name = self.get_full_name(name)
+        full_name = utils.get_full_name(name)
         event = Event()
 
+        logging.info("Waiting the address and port info of {}".format(full_name))
         def wait_handler(service):
+            logger.info("Handle new service {}".format(Service))
             if full_name == service.name:
                 event.set()
                 self.unregister_handler(wait_handler)
@@ -79,16 +76,18 @@ class Browser:
         self.register_handler(wait_handler)
 
         if full_name in self.services:
+            logger.info("The service {} info is existing...".format(full_name))
             event.set()
             self.unregister_handler(wait_handler)
 
         event.wait(timeout=timeout)
-        return self.get(full_name)
+        return self.get_by_full_name(full_name)
 
     def handler(self, zeroconf, service_type, name, state_change):
         service = Service(zeroconf, service_type, name, state_change)
 
         if service.state == service.ADDED:
+            logger.info("New service {} is added".format(name))
             self.services[name] = service
         else:
             del self.services[name]
@@ -103,12 +102,13 @@ class Browser:
         self.handlers.remove(handler)
 
     def start(self):
-        self.browser = ServiceBrowser(self.zeroconf, self.TYPE, handlers=[self.handler])
+        self.browser = ServiceBrowser(self.zeroconf, utils.TYPE, handlers=[self.handler])
 
     def close(self):
         self.zeroconf.close()
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     browser = Browser()
 
     def handler(state):

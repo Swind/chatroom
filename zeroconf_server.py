@@ -1,36 +1,30 @@
 from zeroconf import ServiceInfo, Zeroconf
+from utils import TYPE, get_full_name
 import socket
 
 import logging 
 
-logger = logging.getLogger("chatroom")
+logger = logging.getLogger("chatroom.zeroconf.server")
 
 class Server:
-    TYPE = "_http._tcp.local."
-    FULL_NAME_FORMAT = "{}._http._tcp.local."
-
     def __init__(self, name, address, port, description):
         self.zeroconf = Zeroconf()
         self.name = name
         self.description = description
+        self.address = address
+        self.port = port
 
-        self.info = ServiceInfo(type_=self.TYPE,
-                           name=self.get_full_name(),
-                           address=socket.inet_aton(address), 
-                           port=port, 
+        self.full_name = get_full_name(name)
+        self.info = ServiceInfo(type_=TYPE,
+                           name=self.full_name,
+                           address=socket.inet_aton(self.address),
+                           port=self.port,
                            weight=0, 
                            priority=0, 
                            properties=self.description)
 
-    def get_full_name(self):
-        if not self.name.startswith("_"):
-            name = "_{}".format(self.name)
-        else:
-            name = self.name
-
-        return self.FULL_NAME_FORMAT.format(name)
-
     def register(self):
+        logger.info("Broadcast server {} at {}:{}".format(self.full_name, self.address, self.port))
         self.zeroconf.register_service(self.info)
 
     def unregister(self):
@@ -41,6 +35,7 @@ class Server:
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     server = Server(
         name="testing", 
         address="192.168.0.16",
