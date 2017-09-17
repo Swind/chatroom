@@ -46,33 +46,44 @@ class Service:
 
 
 class Browser:
+    TYPE = "_http._tcp.local."
+    FULL_NAME_FORMAT = "{}._http._tcp.local."
+
     def __init__(self):
         self.zeroconf = Zeroconf()
         self.handlers = []
 
         self.services = {}
 
+    def get_full_name(self, name):
+        if not name.startswith("_"):
+            name = "_{}".format(name)
+
+        return self.FULL_NAME_FORMAT.format(name)
+
     def list(self):
         return self.services.values()
 
     def get(self, name):
-        return self.services.get(name)
+        return self.services.get(self.get_full_name(name))
 
-    def wait(self, name):
+    def wait(self, name, timeout=60):
+        full_name = self.get_full_name(name)
         event = Event()
 
         def wait_handler(service):
-            if name == service.name:
+            if full_name == service.name:
                 event.set()
                 self.unregister_handler(wait_handler)
 
         self.register_handler(wait_handler)
 
-        if name in self.services:
+        if full_name in self.services:
             event.set()
             self.unregister_handler(wait_handler)
 
-        return event
+        event.wait(timeout=timeout)
+        return self.get(full_name)
 
     def handler(self, zeroconf, service_type, name, state_change):
         service = Service(zeroconf, service_type, name, state_change)
@@ -92,7 +103,7 @@ class Browser:
         self.handlers.remove(handler)
 
     def start(self):
-        self.browser = ServiceBrowser(self.zeroconf, "_turing._tcp.local.", handlers=[self.handler])
+        self.browser = ServiceBrowser(self.zeroconf, self.TYPE, handlers=[self.handler])
 
     def close(self):
         self.zeroconf.close()
@@ -103,7 +114,6 @@ if __name__ == "__main__":
     def handler(state):
         print(state)
 
-    browser.register_handlers(handler)
+    browser.register_handler(handler)
     browser.start()
-
-    time.sleep(600)
+    browser.wait("testing")
