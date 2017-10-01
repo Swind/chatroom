@@ -3,3 +3,4 @@ python-socketio
 aiohttp
 socketIO-client
 retrying
+pytest

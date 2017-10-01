@@ -1,11 +1,16 @@
-from aiohttp import web
-import socketio
-
-from zeroconf_server import Server as ZServer
-import utils
-
 import logging
-logger = logging.getLogger("chatroom")
+
+import socketio
+import chatroom.utils as utils
+from aiohttp import web
+
+from chatroom.zeroconf_server import Server as ZServer
+
+import os
+ROOT_FOLDER = os.path.join(os.path.dirname(__file__), "..")
+STATIC_FOLDER = os.path.join(ROOT_FOLDER, "static")
+
+logger = logging.getLogger("chatroom.server")
 logging.basicConfig(level=logging.INFO)
 
 class Server:
@@ -18,16 +23,21 @@ class Server:
         self.registers = {}
         self.path_index = {}
 
+        self._init_zeroconfig()
+        self._init_socketio()
+
+    def _init_zeroconfig(self):
         # Zeroconf
-        logger.info("Start zeroconfig server {} at {}:{}".format(name, address, port))
-        self.zserver = ZServer(name, address, port, {
+        logger.info("Start zeroconfig server {} at {}:{}".format(self.name, self.address, self.port))
+        self.zserver = ZServer(self.name, self.address, self.port, {
             "version": self.version
         })
         self.zserver.register()
 
+    def _init_socketio(self):
         # Socket.IO
         self.app = web.Application()
-        self.app.router.add_static('/static', 'static')
+        self.app.router.add_static('/static', STATIC_FOLDER)
         self.app.router.add_get('/', self.index)
 
         self.sio = socketio.AsyncServer()
@@ -38,6 +48,11 @@ class Server:
         self.sio.on("register", self.register, namespace="/chat")
         self.sio.on("unregister", self.unregister, namespace="/chat")
 
+        self.sio.on("rpc_request", self.rpc_request, namespace="/chat")
+        self.sio.on("rpc_response", self.rpc_response, namespace="/chat")
+        self.sio.on("publish", self.publish, namespace="/chat")
+        self.sio.on("subscribe", self.subscribe, namespace="/chat")
+
     async def index(self, request):
         with open('index.html') as f:
             return web.Response(text=f.read(), content_type='text/html')
@@ -45,21 +60,23 @@ class Server:
     def get_broadcast_path(self, name):
         return "{}-broadcast".format(name)
 
-    async def reply(self, event_type, sid, success, error=""):
+    async def reply(self, uid, sid, success, error=""):
         msg = {
             "success": success
         }
         if not success:
             msg['error'] = error
 
-        await self.sio.emit(utils.get_resp_event_name(event_type), msg, room=sid, namespace="/chat")
+        await self.sio.emit(uid, msg, room=sid, namespace="/chat")
 
     async def register(self, sid, client_info):
+        uid = client_info.get('_uid')
+
         logger.info("Receive a new register request")
         path = client_info.get('path')
 
         if path is None:
-            await self.reply("register", sid, success=False, error="The 'path' should be in the register data")
+            await self.reply(uid, sid, success=False, error="The 'path' should be in the register data")
 
         # Save the client information
         self.registers[sid] = client_info
@@ -68,9 +85,11 @@ class Server:
         # Create a broadcast room for this client
         self.sio.enter_room(sid, room=self.get_broadcast_path(path))
 
-        await self.reply("register", sid, success=True)
+        await self.reply(uid, sid, success=True)
 
-    async def unregister(self, sid, data=None, reply=True):
+    async def unregister(self, sid, data, reply=True):
+        uid = data.get('_uid')
+
         client_info = self.registers.get(sid)
         if client_info:
             del self.registers[sid]
@@ -78,7 +97,7 @@ class Server:
         del self.path_index[client_info.get('path')]
 
         if reply:
-            await self.reply('unregister', success=True)
+            await self.reply(uid, success=True)
 
     def connect(self, sid, environ):
         logger.info("New connection {}".format(sid))
@@ -87,9 +106,9 @@ class Server:
         logger.info("{} disconnected".format(sid))
         await self.unregister(sid, reply=False)
 
-    async def _emit(self, source_sid, type_, target_path, payload):
+    async def _emit(self, uid, source_sid, type_, target_path, payload):
         if target_path is None or payload is None:
-            await self.reply(type_, source_sid, success=False, error="The 'target' and 'payload' should be in the {} data".format(type_))
+            await self.reply(uid, source_sid, success=False, error="The 'path' and 'payload' should be in the {} data".format(type_))
 
         source_client_info = self.registers[source_sid]
         source_path = source_client_info.get('path')
@@ -100,52 +119,61 @@ class Server:
             target_sid = self.path_index.get(target_path)
 
         if target_sid is None:
-            await self.reply(type_, source_sid, success=False, error="Path {} is not existing".format(target_path))
+            await self.reply(uid, source_sid, success=False, error="Path {} is not existing".format(target_path))
+
+        await self.reply(uid, source_sid, success=True)
 
         request_payload = {
-            "source": source_path,
+            "path": source_path,
             "payload": payload
         }
-        await self.sio.emit(type_, request_payload, room=target_sid)
-        await self.reply(type_, source_sid, success=True)
+        await self.sio.emit(type_, request_payload, room=target_sid, namespace="/chat")
 
-    async def request(self, sid, data):
+    async def rpc_request(self, sid, data):
+        uid = data.get("_uid")
+        target_path = data.get('path')
+        logger.info("Forward rpc_request to {}".format(target_path))
+
         await self._emit(
+            uid=uid,
             source_sid=sid,
-            type_="request",
-            target_path=data.get('path'),
+            type_="rpc_request",
+            target_path=target_path,
             payload=data.get('payload')
         )
 
-    async def response(self, sid, data):
+    async def rpc_response(self, sid, data):
+        uid = data.get("_uid")
+        target_path = data.get('path')
+        logger.info("Forward rpc_response to {}".format(target_path))
+
         await self._emit(
+            uid=uid,
             source_sid=sid,
-            type_="response",
-            target_path=data.get('path'),
+            type_="rpc_response",
+            target_path=target_path,
             payload=data.get('payload')
         )
 
     async def publish(self, sid, data):
         await self._emit(
             source_sid=sid,
-            type_="response",
+            type_="publish",
             target_path="broadcast",
             payload=data.get('payload')
         )
 
     async def subscribe(self, sid, data):
+        uid = data.get("_uid")
         path = data.get('path')
         if path is None:
-            await self.reply('subscribe', sid, success=False, error="The 'path' should be in the data")
+            await self.reply(uid, sid, success=False, error="The 'path' should be in the data")
         else:
             self.sio.enter_room(sid, room=self.get_broadcast_path(path))
-            await self.reply('subscribe', sid, success=True)
+            await self.reply(uid, sid, success=True)
 
-    def start(self):
-        web.run_app(self.app, host=self.address, port=self.port)
+    def start(self, handle_signals=True):
+        web.run_app(self.app, host=self.address, port=self.port, handle_signals=handle_signals)
 
-if __name__ == '__main__':
-    import time
-    server = Server('turing', "192.168.0.16", 5037, "0.0.1")
-    server.start()
-
+    def stop(self):
+        self.app.shutdown()

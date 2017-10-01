@@ -1,8 +1,9 @@
-from zeroconf import ServiceInfo, Zeroconf
-from utils import TYPE, get_full_name
+import logging
 import socket
 
-import logging 
+from zeroconf import ServiceInfo, Zeroconf
+
+from chatroom.utils import TYPE, get_full_name
 
 logger = logging.getLogger("chatroom.zeroconf.server")
 

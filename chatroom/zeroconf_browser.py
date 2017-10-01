@@ -1,10 +1,11 @@
-from zeroconf import ServiceBrowser, ServiceStateChange, Zeroconf
-import utils
-from threading import Event
-import socket
-import time
-
 import logging
+import socket
+from threading import Event
+
+from zeroconf import ServiceBrowser, ServiceStateChange, Zeroconf
+
+from chatroom import utils
+
 logger = logging.getLogger("chatroom.zeroconf.browser")
 
 class Service:
