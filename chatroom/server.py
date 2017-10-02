@@ -7,11 +7,12 @@ from aiohttp import web
 from chatroom.zeroconf_server import Server as ZServer
 
 import os
+
 ROOT_FOLDER = os.path.join(os.path.dirname(__file__), "..")
 STATIC_FOLDER = os.path.join(ROOT_FOLDER, "static")
 
 logger = logging.getLogger("chatroom.server")
-logging.basicConfig(level=logging.INFO)
+
 
 class Server:
     def __init__(self, name, address, port, version):
@@ -52,6 +53,8 @@ class Server:
         self.sio.on("rpc_response", self.rpc_response, namespace="/chat")
         self.sio.on("publish", self.publish, namespace="/chat")
         self.sio.on("subscribe", self.subscribe, namespace="/chat")
+
+        self.sio.on("echo", self.echo, namespace="/chat")
 
     async def index(self, request):
         with open('index.html') as f:
@@ -102,14 +105,11 @@ class Server:
     def connect(self, sid, environ):
         logger.info("New connection {}".format(sid))
 
-    async def disconnect(self, sid):
+    async def disconnect(self, sid, data):
         logger.info("{} disconnected".format(sid))
-        await self.unregister(sid, reply=False)
+        await self.unregister(sid, data, reply=False)
 
     async def _emit(self, uid, source_sid, type_, target_path, payload):
-        if target_path is None or payload is None:
-            await self.reply(uid, source_sid, success=False, error="The 'path' and 'payload' should be in the {} data".format(type_))
-
         source_client_info = self.registers[source_sid]
         source_path = source_client_info.get('path')
 
@@ -117,9 +117,6 @@ class Server:
             target_sid = self.get_broadcast_path(source_path)
         else:
             target_sid = self.path_index.get(target_path)
-
-        if target_sid is None:
-            await self.reply(uid, source_sid, success=False, error="Path {} is not existing".format(target_path))
 
         await self.reply(uid, source_sid, success=True)
 
@@ -129,48 +126,66 @@ class Server:
         }
         await self.sio.emit(type_, request_payload, room=target_sid, namespace="/chat")
 
-    async def rpc_request(self, sid, data):
+    ##################################################################################################################
+    #
+    #   API
+    #
+    ##################################################################################################################
+    def _get_info(self, data):
         uid = data.get("_uid")
-        target_path = data.get('path')
-        logger.info("Forward rpc_request to {}".format(target_path))
+        path = data.get("path")
+        payload = data.get("payload")
+
+        return uid, path, payload
+
+    async def echo(self, sid, data):
+        uid, target_path, payload = self._get_info(data)
+
+        await self._emit(
+            uid=uid,
+            source_sid=sid,
+            type_="echo",
+            target_path=target_path,
+            payload=payload
+        )
+
+    async def rpc_request(self, sid, data):
+        uid, target_path, payload = self._get_info(data)
 
         await self._emit(
             uid=uid,
             source_sid=sid,
             type_="rpc_request",
             target_path=target_path,
-            payload=data.get('payload')
+            payload=payload
         )
 
     async def rpc_response(self, sid, data):
-        uid = data.get("_uid")
-        target_path = data.get('path')
-        logger.info("Forward rpc_response to {}".format(target_path))
+        uid, target_path, payload = self._get_info(data)
 
         await self._emit(
             uid=uid,
             source_sid=sid,
             type_="rpc_response",
             target_path=target_path,
-            payload=data.get('payload')
+            payload=payload
         )
 
     async def publish(self, sid, data):
+        uid, _, payload = self._get_info(data)
+
         await self._emit(
+            uid=uid,
             source_sid=sid,
             type_="publish",
             target_path="broadcast",
-            payload=data.get('payload')
+            payload=payload
         )
 
     async def subscribe(self, sid, data):
-        uid = data.get("_uid")
-        path = data.get('path')
-        if path is None:
-            await self.reply(uid, sid, success=False, error="The 'path' should be in the data")
-        else:
-            self.sio.enter_room(sid, room=self.get_broadcast_path(path))
-            await self.reply(uid, sid, success=True)
+        uid, path, payload = self._get_info(data)
+        self.sio.enter_room(sid, room=self.get_broadcast_path(path))
+        await self.reply(uid, sid, success=True)
 
     def start(self, handle_signals=True):
         web.run_app(self.app, host=self.address, port=self.port, handle_signals=handle_signals)

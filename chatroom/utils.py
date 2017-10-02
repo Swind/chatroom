@@ -3,14 +3,17 @@ from threading import Condition, Lock
 TYPE = "_http._tcp.local."
 FULL_NAME_FORMAT = "{}._http._tcp.local."
 
+
 def get_full_name(name):
     if not name.startswith("_"):
         name = "_{}".format(name)
 
     return FULL_NAME_FORMAT.format(name)
 
+
 def get_resp_event_name(req_event_name):
     return "{}-magic_keyword".format(req_event_name)
+
 
 class Event:
     def __init__(self):
@@ -47,6 +50,7 @@ class Event:
                 raise TimeoutError()
             else:
                 return self._msg
+
 
 class EmitError(RuntimeError):
     pass

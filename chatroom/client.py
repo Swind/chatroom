@@ -3,33 +3,41 @@ import threading
 import uuid
 
 from collections import OrderedDict
-
-import chatroom.utils as utils
-from socketIO_client import SocketIO, LoggingNamespace
+from concurrent.futures import ThreadPoolExecutor
 
 from chatroom.zeroconf_browser import Browser
 
 from chatroom.utils import Event, EmitError
 
 logger = logging.getLogger("chatroom.client")
-logging.basicConfig(level=logging.DEBUG)
+
+from socketIO_client import SocketIO, BaseNamespace
+
+
+class ChatNamespace(BaseNamespace):
+    def on_event(self, event, *args):
+        print("Without match eventhandler {}".format(event))
+
 
 class Client:
-    def __init__(self, path, server_name):
+    def __init__(self, path, server_name, max_workers=2):
         self.path = path
         self.server_name = server_name
 
         self.socket_io = None
         self.socket_io_wait_thread = None
+
         self.service = None
         self.channel = None
+
+        self.request_handler_thread_executor = ThreadPoolExecutor(max_workers=2)
 
         self.browser = Browser()
         self.browser.start()
 
-        self.queue_map = OrderedDict()
-        self.subscribe_map = {}
-        self.rpc_map = {}
+        self.rpc_request_events = OrderedDict()
+        self.subscribes = {}
+        self.rpc_apis = {}
 
     def connect(self):
         # Search the server by mDNS
@@ -40,48 +48,51 @@ class Client:
             logger.error(msg)
             raise TimeoutError(msg)
 
+        # Use zeroconf to find the chatroom server
         self.service = service
         logger.info("Found service at {}:{}".format(service.address, service.port))
-
         logger.info("Try to connect to the service by socket.io")
         self.socket_io = SocketIO(service.address, service.port)
+
+        # This thread handles the socket.io message
         self.socket_io_wait_thread = threading.Thread(target=self.socket_io.wait, daemon=True)
         self.socket_io_wait_thread.start()
 
-        self.channel = self.socket_io.define(LoggingNamespace, '/chat')
-        self.channel.on('rpc_request', self.handle_rpc_request)
-        self.channel.on('rpc_response', self.handle_rpc_response)
+        # Register RPC response handler
+        logger.info("Register RPC request/response Handler")
+        self.channel = self.socket_io.define(ChatNamespace, '/chat')
+        self.channel.on('rpc_request', self.on_rpc_request)
+        self.channel.on('rpc_response', self.on_rpc_response)
 
-        # register
+        # Register self information to chatroom server
         result = self.emit("register", {
             "path": self.path
         })
-        if result is None:
-            raise RuntimeError("Can't register to the server {}:{}".format(service.address, service.port))
-        else:
-            logger.info("Connect and register to the server {}:{}".format(service.address, service.port))
 
-        # Register RPC response handler
-        logger.info("Register RPC request/response Handler")
+        if result is None:
+            raise RuntimeError("Can't register to the server {}:{}".format(self.service.address, self.service.port))
+        else:
+            logger.info("Connect and register to the server {}:{}".format(self.service.address, self.service.port))
 
     def disconnect(self):
         self.service.close()
 
-    def emit(self, event_type, data, timeout=60):
+    def emit(self, event_type, data, timeout=5):
         uid = str(uuid.uuid1())
-        event = Event()
-
-        self.channel.once(uid, lambda response: event.set(response))
-
-        logger.debug("Emit event {} with data {}".format(event_type, data))
         data["_uid"] = uid
 
-        self.channel.emit(event_type, data)
+        # Register the callback function for the emit response
+        event = Event()
 
+        def wait_emit_response(emit_response):
+            nonlocal event
+            event.set(emit_response)
+
+        self.channel.once(uid, wait_emit_response)
+
+        self.channel.emit(event_type, data)
         try:
-            print("Waiting {}".format(uid))
             result = event.wait(timeout=timeout)
-            print("Receive {}".format(uid))
             if result.get("success") is False:
                 msg = result.get("message")
                 logger.error("Emit {} failed, error msg {}".format(event_type, result.get("message")))
@@ -93,13 +104,26 @@ class Client:
             logger.error("Emit event {} is timeout".format(event_type))
             raise e
 
-
     #########################################################################################################
     #
     #   RPC
     #
     #########################################################################################################
+    def echo(self, message):
+        event = Event()
 
+        payload = dict(
+            path=self.path,
+            payload=dict(
+                message=message
+            )
+        )
+        self.channel.once("echo", lambda echo_message: event.set(echo_message))
+
+        self.emit("echo", payload)
+        result = event.wait()
+
+        return result
 
     # Send Request
     def send_rpc_request(self, target, method, parameters):
@@ -117,18 +141,52 @@ class Client:
         self.emit('rpc_request', payload)
 
         event = Event()
-        self.queue_map[id] = event
+        self.rpc_request_events[id] = event
 
         return event
 
-    def handle_rpc_response(self, data):
-        print("New rpc response {}".format(data))
+    def _handle_rpc_request(self, data):
+        # Get the request information from SocketIO data
+        source = data.get("path")
+        payload = data.get("payload", {})
 
+        # Get the RPC information from payload
+        id = payload.get("id")
+        method = payload.get("method")
+        parameters = payload.get("parameters")
+
+        # Check the method is existing
+        fn = self.rpc_apis.get(method, None)
+        result = None
+        error = None
+
+        if fn is None:
+            error = "The method {} is not existing"
+        else:
+            try:
+                result = fn(**parameters)
+            except Exception as e:
+                logger.exception(e)
+                error = str(e)
+
+        self.emit('rpc_response', dict(
+            path=source,
+            payload=dict(
+                id=id,
+                result=result,
+                error=error
+            )
+        ))
+
+    def on_rpc_request(self, data):
+        self.request_handler_thread_executor.submit(self._handle_rpc_request, data)
+
+    def on_rpc_response(self, data):
         payload = data.get('payload')
         id = payload.get('id')
         result = payload.get('result')
 
-        event = self.queue_map.get(id)
+        event = self.rpc_request_events.get(id)
         if event:
             event.set(result)
         else:
@@ -137,38 +195,7 @@ class Client:
     # Handle request
     def register_rpc_api(self, name, func):
         logger.info("Register RPC API {}".format(name))
-        self.rpc_map[name] = func
-
-    def handle_rpc_request(self, data):
-        print("New rpc request {}".format(data))
-        source = data.get("path")
-        payload = data.get("payload", {})
-
-        id = payload.get("id")
-        method = payload.get("method")
-        parameters = payload.get("parameters")
-
-        try:
-            result = self.rpc_map[method](**parameters)
-
-            self.emit('rpc_response', dict(
-                path=source,
-                payload=dict(
-                    id=id,
-                    result=result
-                )
-            ))
-        except Exception as e:
-            self.emit('rpc_response', dict(
-                path=source,
-                payload=dict(
-                    id=id,
-                    error=str(e)
-                )
-            ))
-
-        print("Emit response successfully")
-
+        self.rpc_apis[name] = func
 
     # Publish / Subscribe
     def subscribe(self, target, callback):
@@ -176,16 +203,18 @@ class Client:
             path=target
         ))
 
-        self.subscribe_map[target] = callback
+        self.subscribes[target] = callback
 
-    def handle_publish(self, data):
+    def on_publish(self, data):
         source = data.get('path')
-        callback = self.subscribe_map.get(source)
-        callback(data.get('payload'))
+        callback = self.subscribes.get(source, None)
+
+        if callback:
+            callback(data.get('payload'))
+        else:
+            logger.error("Can't find the subscribe of the publish event {}".format(data))
+
 
 if __name__ == "__main__":
     client = Client("testing", "turing")
     client.connect()
-
-
-
