@@ -24,6 +24,9 @@ setup(
     author_email='swind@code-life.info',
     license='MIT',
     packages=find_packages(),
+    package_data={
+        '': ["README.md"]
+    },
     install_requires=[
         "python-socketio",
         "aiohttp",
