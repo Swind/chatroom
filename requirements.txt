@@ -4,3 +4,4 @@ socketIO-client
 retrying
 pytest
 logzero
+zeroconf

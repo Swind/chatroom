@@ -28,7 +28,9 @@ setup(
         "python-socketio",
         "aiohttp",
         "socketIO-client",
-        "retrying"
+        "retrying",
+        "logzero",
+        "zeroconf"
     ],
     classifiers=classifiers,
     cmdclass=versioneer.get_cmdclass(),

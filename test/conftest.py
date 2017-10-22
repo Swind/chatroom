@@ -27,4 +27,3 @@ def server(request, server_name):
     server_thread = threading.Thread(target=_start_server, args=[server], daemon=True)
     server_thread.start()
     yield server
-    server.stop()
