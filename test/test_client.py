@@ -13,7 +13,7 @@ def test_echo(server_name, server):
     client = Client("testing.echo", server_name=server_name)
     client.connect()
 
-    for index in range(0, 100):
+    for index in range(0, 10):
         result = client.echo("Hello World! Echo {}".format(index))
         print(result)
 
@@ -27,7 +27,7 @@ def test_rpc(server_name, server):
 
     client.register_rpc_api("echo", echo)
 
-    for index in range(0, 100):
+    for index in range(0, 10):
         event = client.send_rpc_request(
             target="testing.rpc.client",
             method="echo",
