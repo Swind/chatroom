@@ -1,9 +1,13 @@
 sudo: false
 language: python
+python:
+  - "3.6"
 cache:
-- pip
+  - pip
 install:
-- pip install -U pip wheel python-versionner
+  - pip install -U pip wheel versionner
+script:
+  - ver --version
 deploy:
   provider: pypi
   user: swind
