@@ -8,8 +8,9 @@ from concurrent.futures import ThreadPoolExecutor
 from chatroom.zeroconf_browser import Browser
 
 from chatroom.utils import Event, EmitError
+from logzero import setup_logger
 
-logger = logging.getLogger("chatroom.client")
+logger = setup_logger("chatroom.client")
 
 from socketIO_client import SocketIO, BaseNamespace
 

@@ -1,7 +1,6 @@
 import pytest
 import threading
 from chatroom.server import Server
-from chatroom.client import Client
 
 import logging
 import asyncio
@@ -22,10 +21,10 @@ def _start_server(server):
     server.start(handle_signals=False)
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="session")
 def server(request, server_name):
     server = Server(server_name, "127.0.0.1", 6543, "0.0.1")
     server_thread = threading.Thread(target=_start_server, args=[server], daemon=True)
     server_thread.start()
-
-    return server
+    yield server
+    server.stop()

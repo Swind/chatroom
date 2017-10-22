@@ -1,17 +1,15 @@
-import logging
-
+import os
 import socketio
-import chatroom.utils as utils
 from aiohttp import web
 
-from chatroom.zeroconf_server import Server as ZServer
+from logzero import setup_logger
 
-import os
+from chatroom.zeroconf_server import Server as ZServer
 
 ROOT_FOLDER = os.path.join(os.path.dirname(__file__), "..")
 STATIC_FOLDER = os.path.join(ROOT_FOLDER, "static")
 
-logger = logging.getLogger("chatroom.server")
+logger = setup_logger("chatroom.server")
 
 
 class Server:
@@ -38,7 +36,7 @@ class Server:
     def _init_socketio(self):
         # Socket.IO
         self.app = web.Application()
-        self.app.router.add_static('/static', STATIC_FOLDER)
+        #self.app.router.add_static('/static', STATIC_FOLDER)
         self.app.router.add_get('/', self.index)
 
         self.sio = socketio.AsyncServer()

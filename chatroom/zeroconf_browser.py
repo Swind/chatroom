@@ -1,12 +1,12 @@
-import logging
 import socket
 from threading import Event
 
 from zeroconf import ServiceBrowser, ServiceStateChange, Zeroconf
+from logzero import setup_logger
 
 from chatroom import utils
 
-logger = logging.getLogger("chatroom.zeroconf.browser")
+logger = setup_logger("chatroom.zeroconf.browser")
 
 class Service:
     ADDED = "added"
@@ -67,7 +67,7 @@ class Browser:
         full_name = utils.get_full_name(name)
         event = Event()
 
-        logging.info("Waiting the address and port info of {}".format(full_name))
+        logger.info("Waiting the address and port info of {}".format(full_name))
         def wait_handler(service):
             logger.info("Handle new service {}".format(Service))
             if full_name == service.name:
@@ -109,7 +109,6 @@ class Browser:
         self.zeroconf.close()
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
     browser = Browser()
 
     def handler(state):

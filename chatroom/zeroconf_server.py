@@ -5,7 +5,8 @@ from zeroconf import ServiceInfo, Zeroconf
 
 from chatroom.utils import TYPE, get_full_name
 
-logger = logging.getLogger("chatroom.zeroconf.server")
+from logzero import setup_logger
+logger = setup_logger("chatroom.zeroconf.server")
 
 class Server:
     def __init__(self, name, address, port, description):

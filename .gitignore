@@ -9,3 +9,4 @@ data/*
 .ropeproject
 backup
 *.mp4
+.cache
