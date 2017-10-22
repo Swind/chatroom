@@ -1,3 +1,4 @@
+import os
 from setuptools import setup, find_packages
 import versioneer
 classifiers = [
@@ -15,11 +16,17 @@ classifiers = [
     'Topic :: Software Development :: Testing',
 ]
 
+if os.path.exists('README.md'):
+    with open('README.md', 'r') as fp:
+        long_description = fp.read().strip()
+else:
+    long_description = ""
+
 setup(
     name='turing-chatroom-bus',
     version=versioneer.get_version(),
     description='Turing Chatroom Bus',
-    long_description=open('README.md').read().strip(),
+    long_description=long_description,
     author='Swind Ou',
     author_email='swind@code-life.info',
     license='MIT',
