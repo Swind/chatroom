@@ -1,4 +1,3 @@
-zeroconf
 python-socketio
 aiohttp
 socketIO-client
