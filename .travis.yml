@@ -1,0 +1,11 @@
+sudo: false
+language: python
+cache:
+- pip
+install:
+- pip install -U pip wheel python-versionner
+deploy:
+  provider: pypi
+  user: swind
+  password:
+    secure: mu3mffGJKz7wm3VUQiLKaiS8CU9p5lsFVy7gimVv8i+m76yonaTDeOTyfhQXGJFffz+CTX7xULdBOHVqLblauUE93ZMAXhrtdrXylepcXWBaNYuVcOf2w+UtY+Y3f9FEAIzVwfneZQJjgOOssYMTrUzgbn8Xe54DWD3aDkxgRIuHXRImQySqAg9CzJR95Uqx1CbjQcp0sXDyWWHw/nh8nrBbBvD498OmCRUREhUuxGzY6R5TG2Ccb4tBhHlHl19cFmwbskuYuCyYnfH6LavKGIjXWo15WuSDuBgX6/B41UxE7P9kwaRKrWkAwRUBesKZu9GiUbt90yJv0+jANw1Eivd8x8JZ6/NQtbzBUyQr5YH1vWtwMj3+qR5GDrC4ktwqEQh6cOZ7KU0F7S03Kw5eqLBTJOValwGIOzivlBrHSg0CDI1An9rchqdUV1yXGbKDOoQtXFwUYZNLtHYfUSslo/YBwqrMKiaFBzErKT0VIE0TEp+x7tskiI3a+UBRNBz5LA/c7oKkC6RUTwOM8kZg0LfuRrn+vDu6IrWZpLzzuLkJxBlyx6gDo/rfs6wMtFxCd1L0xJM2TMB30GuZ1AQPXTifvdqZFWkG5+hutOl4otYSCDwSE4U8OCf1YKD6Pc/20w+x17Rlhxcr/xjQTSVxl+tlldWSN4oUZ8LWWdTcUjY=
