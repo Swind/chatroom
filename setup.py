@@ -16,11 +16,11 @@ classifiers = [
     'Topic :: Software Development :: Testing',
 ]
 
-if os.path.exists('README.md'):
-    with open('README.md', 'r') as fp:
-        long_description = fp.read().strip()
-else:
-    long_description = ""
+#if os.path.exists('README.md'):
+#    with open('README.md', 'r') as fp:
+#        long_description = fp.read().strip()
+#else:
+long_description = ""
 
 setup(
     name='turing-chatroom-bus',
