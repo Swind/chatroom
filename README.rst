@@ -7,7 +7,7 @@ Response
 Success
 ################################################
 
-... code-block:: json
+.. code-block:: json
     {
       "_uid": <The id of the request>,
       "success": <true or false>,
@@ -21,7 +21,7 @@ Register
 client
 #################################################
 
-... code-block:: json
+.. code-block:: json
     {
       "_uid": <uuid>,
       "path": <client path>
@@ -33,7 +33,7 @@ RPC
 RPC Request
 #################################################
 
-... code-block:: json
+.. code-block:: json
     {
       "_uid": <uuid>,
       "path": <target path>,
@@ -47,7 +47,7 @@ RPC Request
 RPC Response
 #################################################
 
-... code-block:: json
+.. code-block:: json
     {
       "_uid": <uuid>,
       "path": <RPC request source path>,
