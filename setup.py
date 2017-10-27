@@ -1,6 +1,7 @@
 import os
 from setuptools import setup, find_packages
 import versioneer
+
 classifiers = [
     'Development Status :: 4 - Beta',
     'Intended Audience :: Developers',
@@ -16,24 +17,21 @@ classifiers = [
     'Topic :: Software Development :: Testing',
 ]
 
-#if os.path.exists('README.md'):
-#    with open('README.md', 'r') as fp:
-#        long_description = fp.read().strip()
-#else:
 long_description = ""
+
+if os.path.exists('README.rst'):
+    with open('README.rst', 'r') as fp:
+        long_description = fp.read().strip()
 
 setup(
     name='turing-chatroom-bus',
     version=versioneer.get_version(),
-    description='Turing Chatroom Bus',
+    description='Chatroom by Socket.IO',
     long_description=long_description,
     author='Swind Ou',
     author_email='swind@code-life.info',
     license='MIT',
-    packages=find_packages(),
-    package_data={
-        '': ["README.md"]
-    },
+    packages=['chatroom'],
     install_requires=[
         "python-socketio",
         "aiohttp",
@@ -42,6 +40,7 @@ setup(
         "logzero",
         "zeroconf"
     ],
+    include_package_data=True,
     classifiers=classifiers,
     cmdclass=versioneer.get_cmdclass(),
 )
