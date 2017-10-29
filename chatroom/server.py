@@ -182,7 +182,8 @@ class Server:
 
     async def subscribe(self, sid, data):
         uid, path, payload = self._get_info(data)
-        self.sio.enter_room(sid, room=self.get_broadcast_path(path))
+        room = self.get_broadcast_path(path)
+        self.sio.enter_room(sid, room=room, namespace="/chat")
         await self.reply(uid, sid, success=True)
 
     def start(self, handle_signals=True):

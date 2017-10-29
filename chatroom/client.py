@@ -64,6 +64,7 @@ class Client:
         self.channel = self.socket_io.define(ChatNamespace, '/chat')
         self.channel.on('rpc_request', self.on_rpc_request)
         self.channel.on('rpc_response', self.on_rpc_response)
+        self.channel.on('publish', self.on_publish)
 
         # Register self information to chatroom server
         result = self.emit("register", {
@@ -78,7 +79,7 @@ class Client:
     def disconnect(self):
         self.service.close()
 
-    def emit(self, event_type, data, timeout=5):
+    def emit(self, event_type, data, timeout=3600):
         uid = str(uuid.uuid1())
         data["_uid"] = uid
 
@@ -199,6 +200,11 @@ class Client:
         self.rpc_apis[name] = func
 
     # Publish / Subscribe
+    def publish(self, data): 
+        self.emit("publish", {
+            "payload": data
+        })
+    
     def subscribe(self, target, callback):
         self.emit("subscribe", dict(
             path=target
