@@ -5,3 +5,4 @@ retrying
 pytest
 logzero
 zeroconf
+pytest-asyncio

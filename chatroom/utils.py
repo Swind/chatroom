@@ -1,4 +1,5 @@
-from threading import Condition, Lock
+import threading
+import asyncio
 
 TYPE = "_http._tcp.local."
 FULL_NAME_FORMAT = "{}._http._tcp.local."
@@ -15,42 +16,43 @@ def get_resp_event_name(req_event_name):
     return "{}-magic_keyword".format(req_event_name)
 
 
-class Event:
+class Event(threading.Event):
     def __init__(self):
-        self._cond = Condition(Lock())
-        self._flag = False
         self._msg = None
+        super().__init__()
 
-    def _reset_internal_locks(self):
-        self._cond.__init__(Lock())
-
-    def is_set(self):
-        return self._flag
-
-    isSet = is_set
-
-    def set(self, msg):
-        with self._cond:
-            self._flag = True
-            self._msg = msg
-            self._cond.notify_all()
+    def set_msg(self, msg):
+        self._msg = msg
+        return super().set()
 
     def clear(self):
-        with self._cond:
-            self._flag = False
-            self._msg = None
+        self._msg = None
+        return super().clear()
 
     def wait(self, timeout=None):
-        with self._cond:
-            signaled = self._flag
-            if not signaled:
-                signaled = self._cond.wait(timeout)
+        super().wait(timeout=timeout)
+        return self._msg
 
-            if not signaled:
-                raise TimeoutError()
-            else:
-                return self._msg
+class AsyncEvent(asyncio.Event):
+    def __init__(self, loop=None):
+        self._msg = None
+        super().__init__(loop=loop)
 
+    def set(self):
+        #FIXME: The _loop attribute is not documented as public api!
+        self._loop.call_soon_threadsafe(super().set)
+
+    def set_msg(self, msg):
+        self._msg = msg
+        return self.set()
+
+    def clear(self):
+        self._msg = None
+        return super().clear()
+
+    async def wait(self, timeout=None):
+        await super().wait()
+        return self._msg
 
 class EmitError(RuntimeError):
     pass

@@ -88,8 +88,11 @@ class Server:
 
         await self.reply(uid, sid, success=True)
 
-    async def unregister(self, sid, data, reply=True):
-        uid = data.get('_uid')
+    async def unregister(self, sid, data=None, reply=True):
+        if data:
+            uid = data.get('_uid')
+        else:
+            uid = None
 
         client_info = self.registers.get(sid)
         if client_info:
@@ -97,15 +100,15 @@ class Server:
 
         del self.path_index[client_info.get('path')]
 
-        if reply:
+        if reply and uid:
             await self.reply(uid, success=True)
 
     def connect(self, sid, environ):
         logger.info("New connection {}".format(sid))
 
-    async def disconnect(self, sid, data):
+    async def disconnect(self, sid):
         logger.info("{} disconnected".format(sid))
-        await self.unregister(sid, data, reply=False)
+        await self.unregister(sid, reply=False)
 
     async def _emit(self, uid, source_sid, type_, target_path, payload):
         source_client_info = self.registers[source_sid]
